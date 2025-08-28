@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <!-- Provisioning -->
+        <script type="text/javascript">
+            const myLocalDB = window.localStorage;
+            const alreadyConfigured = myLocalDB.getItem("wssServer") !== null;
+
+            // Set localStorage items from URL parameters and then redirect to Phone application
+            var params = new URLSearchParams(window.location.search);
+            var browserPhoneConfigParams = [
+                'wssServer',
+                'WebSocketPort',
+                'ServerPath',
+                'SipDomain',
+                'SipUsername',
+                'SipPassword',
+                'profileName',
+                'VoiceMailSubscribe',
+                'Notifications',
+                'VoicemailDid'
+            ];
+
+            browserPhoneConfigParams.forEach(function(key) {
+                if (params.has(key)) {
+                    myLocalDB.setItem(key, params.get(key));
+                }
+            });
+
+            // Do not show welcome screen
+            myLocalDB.setItem('WelcomeScreenAccept', 'yes');
+
+            if (params.has('targetPage')) {
+                // we use replace() so that the back button does not return to this page
+                // and it's not kept in browser history
+                window.location.replace(params.get('targetPage') + alreadyConfigured ? '' : '?firstTime=true');
+            }
+        </script>
+    </head>
+</html>

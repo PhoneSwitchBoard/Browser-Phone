@@ -44,36 +44,24 @@
 
         <!-- Provisioning -->
         <script type="text/javascript">
-            const myLocalDB = window.localStorage;
+
+            var params = new URLSearchParams(window.location.search);
+            if (params.has('firstTime')) {
+                setTimeout(() => {
+                    let $notificationsCheck = $("#Settings_Notifications");
+
+                    // If Onscreen notifications are enabled, ask the user
+                    // to approve the permission to receive onscreen notifications
+                    if ($notificationsCheck.is(':checked')) {
+                        $notificationsCheck.trigger("change");
+                    }
+                }, 3000);
+            }
 
             // Provision runtime options can go here.
             var phoneOptions = {
                 loadAlternateLang: true
             }
-
-            var additionalPhoneOptions = {};
-
-            var params = new URLSearchParams(window.location.search);
-            var browserPhoneConfigParams = [
-                'wssServer',
-                'WebSocketPort',
-                'ServerPath',
-                'SipDomain',
-                'SipUsername',
-                'SipPassword',
-                'profileName',
-                'VoiceMailSubscribe',
-                'VoicemailDid'
-            ];
-
-            browserPhoneConfigParams.forEach(function(key) {
-                if (params.has(key)) {
-                    additionalPhoneOptions[key] = params.get(key);
-                    myLocalDB.setItem(key, params.get(key));
-                }
-            });
-
-            Object.assign(phoneOptions, additionalPhoneOptions);
 
             // Occurs after the language file is loaded
             document.addEventListener("language_pack_loaded", function(lang){

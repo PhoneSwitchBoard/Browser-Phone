@@ -33,7 +33,7 @@
             if (params.has('targetPage')) {
                 // we use replace() so that the back button does not return to this page
                 // and it's not kept in browser history
-                window.location.replace(params.get('targetPage') + alreadyConfigured ? '' : '?firstTime=true');
+                window.location.replace(params.get('targetPage') + (alreadyConfigured ? '' : '?firstTime=true'));
             }
         </script>
     </head>

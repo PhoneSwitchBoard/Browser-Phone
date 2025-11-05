@@ -238,6 +238,12 @@ let SpeakerDevices = [];
 let Lines = [];
 let lang = {}
 let audioBlobs = {}
+
+// Audio Context Unlock
+// ====================
+var audioContextUnlocked = false;
+var audioUnlockPromptShown = false;
+
 let newLineNumber = 1;
 let telNumericRegEx = /[^\d\*\#\+]/g
 let telAlphanumericRegEx = /[^\da-zA-Z\*\#\+\-\_\.\!\~\'\(\)]/g
@@ -1736,12 +1742,20 @@ function InitUi(){
         if(localDB.getItem("WelcomeScreenAccept") != "yes"){
             OpenWindow(welcomeScreen, lang.welcome, 480, 600, true, false, lang.accept, function(){
                 localDB.setItem("WelcomeScreenAccept", "yes");
+                UnlockAudioContext();
                 CloseWindow();
                 ShowMyProfile();
             }, null, null, null, null);
 
             return;
         }
+    }
+
+    if ( ((!welcomeScreen) || localDB.getItem("WelcomeScreenAccept") == "yes") && localDB.getItem("profileUserID") != null ) {
+        // If no welcome screen
+        setTimeout(function() {
+            ShowAudioEnablePrompt();
+        }, 500);
     }
 
     // Check if you account is created
@@ -1920,6 +1934,107 @@ function PreloadAudioFiles(){
         oReq.send();
     });
     // console.log(audioBlobs);
+}
+
+// Audio Context Unlock Function
+// ==============================
+function UnlockAudioContext() {
+    if (audioContextUnlocked) {
+        console.log("Audio context already unlocked");
+        return;
+    }
+
+    console.log("Attempting to unlock audio context...");
+
+    // Check if audio files are loaded
+    if (!audioBlobs.Ringtone || !audioBlobs.Ringtone.blob) {
+        console.warn("Audio files not yet loaded, cannot unlock");
+        return;
+    }
+
+    try {
+        // Play and immediately pause a nearly-silent audio file
+        var unlockAudio = new Audio(audioBlobs.Ringtone.blob);
+        unlockAudio.volume = 0.01; // Very quiet, almost silent
+
+        var playPromise = unlockAudio.play();
+
+        if (playPromise !== undefined) {
+            playPromise.then(function() {
+                unlockAudio.pause();
+                unlockAudio.currentTime = 0;
+                audioContextUnlocked = true;
+                console.log("Audio context successfully unlocked");
+            }).catch(function(error) {
+                console.error("Failed to unlock audio:", error.message);
+            });
+        }
+    } catch (e) {
+        console.error("Exception in UnlockAudioContext:", e);
+    }
+}
+
+// Show Audio Enable Prompt
+// ========================
+function ShowAudioEnablePrompt() {
+    if (audioUnlockPromptShown) {
+        console.log("Audio enable prompt already shown");
+        return;
+    }
+
+    audioUnlockPromptShown = true;
+
+    var messageHtml = "<div class='UiText' style='padding: 20px; text-align: center;'>";
+    messageHtml += "<div style='margin-bottom: 20px;'>";
+    messageHtml += "<i class='fa fa-volume-up' style='font-size: 48px; color: #4CAF50;'></i>";
+    messageHtml += "</div>";
+    messageHtml += "<div style='font-size: 16px; margin-bottom: 10px;'>";
+    messageHtml += "<strong>Enable Ringtone Audio</strong>";
+    messageHtml += "</div>";
+    messageHtml += "<div style='font-size: 14px; color: #666;'>";
+    messageHtml += "Click the button below to enable ringtones for incoming calls.";
+    messageHtml += "<br><br>";
+    messageHtml += "This is required by your browser to allow audio playback.";
+    messageHtml += "</div>";
+    messageHtml += "</div>";
+
+    OpenWindow(
+        messageHtml,
+        "Audio Setup",
+        380,
+        400,
+        true,  // hideCloseButton = true (user must click Enable)
+        false, // allowResize = false
+        "Enable Audio",
+        function() {
+            // Button clicked - unlock audio
+            console.log("User clicked 'Enable Audio' button");
+
+            // Attempt to unlock audio context
+            UnlockAudioContext();
+
+            // Close the window
+            CloseWindow();
+
+            // Show brief confirmation
+            setTimeout(function() {
+                if (audioContextUnlocked) {
+                    console.log("✓ Audio enabled successfully");
+                    // Optional: Show a brief success message
+                    // Alert("Audio has been enabled for incoming calls", "Success");
+                } else {
+                    console.warn("Audio unlock may have failed - will retry on next interaction");
+                }
+            }, 500);
+        },
+        null, // No second button
+        null, // No second button callback
+        function() {
+            // DoOnLoad - when dialog opens
+            console.log("Audio enable prompt displayed to user");
+        },
+        null // OnClose callback
+    );
 }
 
 // Create User Agent
@@ -2649,9 +2764,19 @@ function ReceiveCall(session) {
                 // If there has been no interaction with the page at all... this page will not work
                 ringer.play().then(function(){
                     // Audio Is Playing
+                    if (!audioContextUnlocked) {
+                        console.warn("Ringtone started but audio context was not unlocked beforehand");
+                    } else {
+                        console.log("Ringtone playing (audio context was unlocked)");
+                    }
                 }).catch(function(e){
                     console.warn("Unable to play audio file.", e);
-                }); 
+
+                    if (!audioContextUnlocked) {
+                        console.error("AUDIO PLAYBACK BLOCKED: No user interaction yet.");
+                        console.log("→ The ringtone will play once user switches to this tab");
+                    }
+                });
             }
             lineObj.SipSession.data.ringerObj = ringer;
         } else {
@@ -2671,13 +2796,23 @@ function ReceiveCall(session) {
                 // If there has been no interaction with the page at all... this page will not work
                 ringer.play().then(function(){
                     // Audio Is Playing
+                    if (!audioContextUnlocked) {
+                        console.warn("Ringtone started but audio context was not unlocked beforehand");
+                    } else {
+                        console.log("Ringtone playing (audio context was unlocked)");
+                    }
                 }).catch(function(e){
                     console.warn("Unable to play audio file.", e);
-                }); 
+
+                    if (!audioContextUnlocked) {
+                        console.error("AUDIO PLAYBACK BLOCKED: No user interaction yet.");
+                        console.log("→ The ringtone will play once user switches to this tab");
+                    }
+                });
             }
             lineObj.SipSession.data.ringerObj = ringer;
         }
-    
+
     }
 
     // Custom Web hook

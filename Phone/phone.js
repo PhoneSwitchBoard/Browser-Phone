@@ -2001,7 +2001,7 @@ function ShowAudioEnablePrompt() {
     OpenWindow(
         messageHtml,
         "Audio Setup",
-        380,
+        350,
         400,
         true,  // hideCloseButton = true (user must click Enable)
         false, // allowResize = false

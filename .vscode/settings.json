@@ -66,5 +66,7 @@
         "withvideo",
         "WXYZ",
         "XMMP"
-    ]
+    ],
+    "editor.trimAutoWhitespace": true,
+    "files.trimTrailingWhitespace": false
 }

@@ -12605,7 +12605,6 @@ function ShowMyProfile(){
                 var audioDeviceFound = false;
     
                 var MicrophoneFound = false;
-                var SpeakerFound = false;
                 var VideoFound = false;
     
                 for (var i = 0; i < deviceInfos.length; ++i) {
@@ -12617,9 +12616,6 @@ function ShowMyProfile(){
                         if(savedAudioDevice != "default" && deviceInfos[i].deviceId == savedAudioDevice) {
                             audioDeviceFound = true;
                         }
-                    }
-                    else if (deviceInfos[i].kind === "audiooutput") {
-                        SpeakerFound = true;
                     }
                     else if (deviceInfos[i].kind === "videoinput") {
                         if(EnableVideoCalling == true){
@@ -12679,12 +12675,7 @@ function ShowMyProfile(){
                     // Display Output Levels
                     $("#Settings_SpeakerOutput").css("width", "0%");
                     $("#Settings_RingerOutput").css("width", "0%");
-                    if(!SpeakerFound){
-                        console.log("No speaker devices found, make sure one is plugged in.")
-                        $("#playbackSrc").hide();
-                        $("#RingDeviceSection").hide();
-                    }
-    
+
                     if(EnableVideoCalling == true){
                         // Handle Video
                         settingsVideoStreamTrack = (mediaStream.getVideoTracks().length >= 1)? mediaStream.getVideoTracks()[0] : null;
@@ -12705,6 +12696,8 @@ function ShowMyProfile(){
                     // Return .then()
                     return navigator.mediaDevices.enumerateDevices();
                 }).then(function(deviceInfos){
+                    var SpeakerFound = false;
+
                     for (var i = 0; i < deviceInfos.length; ++i) {
                         console.log("Found Device ("+ deviceInfos[i].kind +") Again: ", deviceInfos[i].label, deviceInfos[i].deviceId);
     
@@ -12722,6 +12715,7 @@ function ShowMyProfile(){
                             selectMicScr.append(option);
                         }
                         else if (deviceInfo.kind === "audiooutput") {
+                            SpeakerFound = true;                        
                             option.text((DisplayName != "")? DisplayName : "Speaker");
                             if(getAudioOutputID() == devideId) option.prop("selected", true);
                             selectAudioScr.append(option);
@@ -12737,6 +12731,13 @@ function ShowMyProfile(){
                             }
                         }
                     }
+
+                    if(!SpeakerFound){
+                        console.log("No speaker devices found, make sure one is plugged in.")
+                        $("#playbackSrc").hide();
+                        $("#RingDeviceSection").hide();
+                    }
+
                     if(EnableVideoCalling == true){
                         // Add "Default" option
                         if(selectVideoScr.children('option').length > 0){

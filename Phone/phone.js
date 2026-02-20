@@ -430,6 +430,49 @@ $(window).on("online", function(){
     console.log('Online!');
     ReconnectTransport();
 });
+
+// Background Tab Re-Registration Keepalive
+// =========================================
+// Browsers throttle setTimeout/setInterval in background tabs, which prevents
+// SIP.js from sending re-REGISTER requests on time. A Web Worker timer is not
+// throttled, so we use it to check registration state on a reliable interval.
+var keepaliveWorker = null;
+try {
+    keepaliveWorker = new Worker("keepalive-worker.js");
+    keepaliveWorker.onmessage = function(e) {
+        if (e.data.type === 'tick' && userAgent && userAgent.isRegistered && !userAgent.isRegistered()) {
+            if (userAgent.transport && userAgent.transport.isConnected()) {
+                console.log("Keepalive: registration expired while tab was in background, re-registering...");
+                userAgent.registering = false;
+                Register();
+            } else {
+                console.log("Keepalive: transport disconnected, attempting reconnect...");
+                ReconnectTransport();
+            }
+        }
+    };
+    keepaliveWorker.postMessage({ action: 'start', interval: 30000 });
+    console.log("Background keepalive worker started (30s interval)");
+} catch(e) {
+    console.warn("Could not start keepalive worker:", e);
+}
+
+// When the tab becomes visible again, immediately check registration
+document.addEventListener("visibilitychange", function() {
+    if (document.visibilityState === 'visible' && userAgent) {
+        console.log("Tab became visible, checking registration...");
+        if (userAgent.transport && userAgent.transport.isConnected()) {
+            if (!userAgent.isRegistered()) {
+                console.log("Tab visible: not registered, re-registering...");
+                userAgent.registering = false;
+                Register();
+            }
+        } else {
+            console.log("Tab visible: transport disconnected, reconnecting...");
+            ReconnectTransport();
+        }
+    }
+});
 $(window).on("keypress", function(event) {
     // TODO: Add Shortcuts
 

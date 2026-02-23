@@ -101,7 +101,7 @@ let SubscribeVoicemailExpires = parseInt(getDbItem("SubscribeVoicemailExpires", 
 let ContactUserName = getDbItem("ContactUserName", "");                                // Optional name for contact header uri
 let userAgentStr = getDbItem("UserAgentStr", "Browser Phone "+ appversion +" (SIPJS - "+ sipjsversion +") "+ navUserAgent);   // Set this to whatever you want.
 let hostingPrefix = getDbItem("HostingPrefix", "");                                    // Use if hosting off root directory. eg: "/phone/" or "/static/"
-let RegisterExpires = parseInt(getDbItem("RegisterExpires", 300));                     // Registration expiry time (in seconds)
+let RegisterExpires = parseInt(getDbItem("RegisterExpires", 60));                      // Registration expiry time (in seconds)
 let RegisterExtraHeaders = getDbItem("RegisterExtraHeaders", "{}");                    // Parsable Json string of headers to include in register process. eg: '{"foo":"bar"}'
 let RegisterExtraContactParams = getDbItem("RegisterExtraContactParams", "{}");        // Parsable Json string of extra parameters add to the end (after >) of contact header during register. eg: '{"foo":"bar"}'
 let RegisterContactParams = getDbItem("RegisterContactParams", "{}");                  // Parsable Json string of extra parameters added to contact URI during register. eg: '{"foo":"bar"}'
@@ -457,6 +457,19 @@ try {
     console.warn("Could not start keepalive worker:", e);
 }
 
+// Prevent Tab Freezing via Web Lock
+// ===================================
+// Chromium-based browsers (Chrome, Edge) can freeze background/minimized tabs,
+// which suspends ALL JavaScript execution including Web Workers and WebSocket
+// message processing. Holding a Web Lock prevents the browser from freezing the tab.
+if (navigator.locks) {
+    navigator.locks.request('switchboard-sip-phone', function() {
+        // Return a promise that never resolves to hold the lock indefinitely
+        return new Promise(function() {});
+    });
+    console.log("Web Lock acquired to prevent tab freezing");
+}
+
 // When the tab becomes visible again, immediately check registration
 document.addEventListener("visibilitychange", function() {
     if (document.visibilityState === 'visible' && userAgent) {
@@ -469,6 +482,28 @@ document.addEventListener("visibilitychange", function() {
             }
         } else {
             console.log("Tab visible: transport disconnected, reconnecting...");
+            ReconnectTransport();
+        }
+    }
+});
+
+// Handle Page Lifecycle freeze/resume events
+// These fire when the browser freezes/unfreezes the tab (if freezing still occurs)
+document.addEventListener("freeze", function() {
+    console.warn("Tab is being frozen by the browser");
+});
+
+document.addEventListener("resume", function() {
+    console.log("Tab resumed from frozen state, checking connection...");
+    if (userAgent) {
+        if (userAgent.transport && userAgent.transport.isConnected()) {
+            if (!userAgent.isRegistered()) {
+                console.log("Resume: not registered, re-registering...");
+                userAgent.registering = false;
+                Register();
+            }
+        } else {
+            console.log("Resume: transport disconnected, reconnecting...");
             ReconnectTransport();
         }
     }

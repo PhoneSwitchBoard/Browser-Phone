@@ -167,17 +167,26 @@ let BuddyAutoDeleteAtEnd = (getDbItem("BuddyAutoDeleteAtEnd", "0") == "1");  // 
 let HideAutoDeleteBuddies = (getDbItem("HideAutoDeleteBuddies", "0") == "1");    // Option to not display Auto Delete Buddies (May be confusing if newly created buddies are set to auto delete.)
 let BuddyShowExtenNum = (getDbItem("BuddyShowExtenNum", "0") == "1");        // Controls the Extension Number display
 
+// One-time migration: clear stale localStorage values so new defaults take effect (v3)
+if(localDB.getItem("_migration_v3") == null) {
+    localDB.removeItem("IntercomPolicy");
+    localDB.removeItem("AutoAnswerPolicy");
+    localDB.removeItem("AutoAnswerEnabled");
+    localDB.setItem("_migration_v3", "1");
+    console.log("Migration v3: cleared IntercomPolicy, AutoAnswerPolicy, AutoAnswerEnabled from localStorage");
+}
+
 // Permission Settings
 let EnableTextMessaging = (getDbItem("EnableTextMessaging", "1") == "1");               // Enables the Text Messaging
 let DisableFreeDial = (getDbItem("DisableFreeDial", "0") == "1");                       // Removes the Dial icon in the profile area, users will need to add buddies in order to dial.
 let DisableBuddies = (getDbItem("DisableBuddies", "0") == "1");                         // Removes the Add Someone menu item and icon from the profile area. Buddies will still be created automatically. Please also use MaxBuddies or MaxBuddyAge
 let EnableTransfer = (getDbItem("EnableTransfer", "1") == "1");                         // Controls Transferring during a call
 let EnableConference = (getDbItem("EnableConference", "1") == "1");                     // Controls Conference during a call
-let AutoAnswerPolicy = getDbItem("AutoAnswerPolicy", "allow");                          // allow = user can choose | disabled = feature is disabled | enabled = feature is always on
+let AutoAnswerPolicy = getDbItem("AutoAnswerPolicy", "disabled");                       // allow = user can choose | disabled = feature is disabled | enabled = feature is always on
 let DoNotDisturbPolicy = getDbItem("DoNotDisturbPolicy", "allow");                      // allow = user can choose | disabled = feature is disabled | enabled = feature is always on
 let CallWaitingPolicy = getDbItem("CallWaitingPolicy", "allow");                        // allow = user can choose | disabled = feature is disabled | enabled = feature is always on
 let CallRecordingPolicy = getDbItem("CallRecordingPolicy", "allow");                    // allow = user can choose | disabled = feature is disabled | enabled = feature is always on
-let IntercomPolicy = getDbItem("IntercomPolicy", "enabled");                            // disabled = feature is disabled | enabled = feature is always on
+let IntercomPolicy = getDbItem("IntercomPolicy", "disabled");                           // disabled = feature is disabled | enabled = feature is always on
 let EnableAccountSettings = (getDbItem("EnableAccountSettings", "1") == "1");           // Controls the Account tab in Settings
 let EnableAppearanceSettings = (getDbItem("EnableAppearanceSettings", "1") == "1");     // Controls the Appearance tab in Settings
 let EnableNotificationSettings = (getDbItem("EnableNotificationSettings", "1") == "1"); // Controls the Notifications tab in Settings
@@ -508,6 +517,77 @@ document.addEventListener("resume", function() {
         }
     }
 });
+
+// RTP Audio Monitor
+// =================
+// Intercepts all HTMLMediaElement.play() calls and all PeerConnection track events
+// to log whenever remote audio could reach the agent's speakers.
+// This helps diagnose issues where agents report hearing calls they didn't answer.
+(function() {
+    var _origPlay = HTMLMediaElement.prototype.play;
+    HTMLMediaElement.prototype.play = function() {
+        var elementId = this.id || '(unnamed)';
+        var hasSrcObject = !!(this.srcObject);
+        var trackInfo = '';
+        if (this.srcObject && this.srcObject.getAudioTracks) {
+            var tracks = this.srcObject.getAudioTracks();
+            trackInfo = tracks.length + ' audio track(s): ' + tracks.map(function(t) {
+                return t.label + ' [' + t.readyState + ']';
+            }).join(', ');
+        }
+        if (hasSrcObject && elementId.indexOf('remoteAudio') > -1) {
+            console.warn('[RTP-MONITOR] Remote audio play() on element: ' + elementId +
+                ' | Tracks: ' + trackInfo +
+                ' | CurrentCalls: ' + (typeof CurrentCalls !== 'undefined' ? CurrentCalls : 'N/A') +
+                ' | Lines: ' + (typeof Lines !== 'undefined' ? Lines.length : 'N/A'));
+            console.trace('[RTP-MONITOR] Call stack for remote audio play');
+        }
+        return _origPlay.apply(this, arguments);
+    };
+
+    // Monitor all PeerConnection creation to catch any RTP track arrival
+    var _origRTCPeerConnection = window.RTCPeerConnection;
+    window.RTCPeerConnection = function() {
+        var pc = new (Function.prototype.bind.apply(_origRTCPeerConnection, [null].concat(Array.prototype.slice.call(arguments))));
+        var pcId = Math.random().toString(36).substring(2, 8);
+        console.log('[RTP-MONITOR] PeerConnection created (id: ' + pcId + ')');
+
+        pc.addEventListener('track', function(event) {
+            var track = event.track;
+            console.warn('[RTP-MONITOR] PeerConnection ' + pcId + ' received ' + track.kind +
+                ' track [' + track.readyState + '] label: ' + track.label +
+                ' | CurrentCalls: ' + (typeof CurrentCalls !== 'undefined' ? CurrentCalls : 'N/A') +
+                ' | Lines: ' + (typeof Lines !== 'undefined' ? Lines.length : 'N/A'));
+
+            if (track.kind === 'audio') {
+                track.addEventListener('unmute', function() {
+                    console.warn('[RTP-MONITOR] Audio track UNMUTED on PeerConnection ' + pcId +
+                        ' | CurrentCalls: ' + (typeof CurrentCalls !== 'undefined' ? CurrentCalls : 'N/A'));
+                });
+                track.addEventListener('mute', function() {
+                    console.log('[RTP-MONITOR] Audio track muted on PeerConnection ' + pcId);
+                });
+                track.addEventListener('ended', function() {
+                    console.log('[RTP-MONITOR] Audio track ended on PeerConnection ' + pcId);
+                });
+            }
+        });
+
+        pc.addEventListener('connectionstatechange', function() {
+            console.log('[RTP-MONITOR] PeerConnection ' + pcId + ' state: ' + pc.connectionState);
+        });
+
+        return pc;
+    };
+    window.RTCPeerConnection.prototype = _origRTCPeerConnection.prototype;
+    // Copy static methods
+    Object.keys(_origRTCPeerConnection).forEach(function(key) {
+        window.RTCPeerConnection[key] = _origRTCPeerConnection[key];
+    });
+
+    console.log('[RTP-MONITOR] Audio monitoring initialized - all remote audio events will be logged');
+})();
+
 $(window).on("keypress", function(event) {
     // TODO: Add Shortcuts
 

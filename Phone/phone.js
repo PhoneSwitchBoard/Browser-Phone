@@ -12923,49 +12923,35 @@ function ShowMyProfile(){
                     }
                 }
     
-                var contraints = {
-                    audio: MicrophoneFound,
-                    video: VideoFound
-                }
-    
+                // Build audio-only constraints (video requested separately to avoid blocking on camera denial)
+                var audioConstraints = { audio: MicrophoneFound, video: false };
                 if(MicrophoneFound){
-                    contraints.audio = { deviceId: "default" }
-                    if(audioDeviceFound) contraints.audio.deviceId = { exact: savedAudioDevice }
+                    audioConstraints.audio = { deviceId: "default" }
+                    if(audioDeviceFound) audioConstraints.audio.deviceId = { exact: savedAudioDevice }
                 }
 
-                if(EnableVideoCalling == true){
-                    if(VideoFound){
-                        contraints.video = { deviceId: "default" }
-                        if(videoDeviceFound) contraints.video.deviceId = { exact: savedVideoDevice }
-                    }
-                    // Additional
+                var videoConstraints = null;
+                if(EnableVideoCalling == true && VideoFound){
+                    videoConstraints = { audio: false, video: { deviceId: "default" } };
+                    if(videoDeviceFound) videoConstraints.video.deviceId = { exact: savedVideoDevice }
                     if($("input[name=Settings_FrameRate]:checked").val() != ""){
-                        contraints.video.frameRate = $("input[name=Settings_FrameRate]:checked").val();
+                        videoConstraints.video.frameRate = $("input[name=Settings_FrameRate]:checked").val();
                     }
                     if($("input[name=Settings_Quality]:checked").val() != ""){
-                        contraints.video.height = $("input[name=Settings_Quality]:checked").val();
+                        videoConstraints.video.height = $("input[name=Settings_Quality]:checked").val();
                     }
                     if($("input[name=Settings_AspectRatio]:checked").val() != ""){
-                        contraints.video.aspectRatio = $("input[name=Settings_AspectRatio]:checked").val();
-                    } 
+                        videoConstraints.video.aspectRatio = $("input[name=Settings_AspectRatio]:checked").val();
+                    }
                 }
-                console.log("Get User Media", contraints);
+                console.log("Get User Media (audio)", audioConstraints, "(video)", videoConstraints);
 
-                // Get User Media
-                var getUserMediaPromise = navigator.mediaDevices.getUserMedia(contraints);
-                // If video was requested but permission denied, fallback to audio-only
-                if(VideoFound && contraints.video !== false){
-                    getUserMediaPromise = getUserMediaPromise.catch(function(e){
-                        console.warn("getUserMedia failed with video, retrying audio-only:", e.name);
-                        VideoFound = false;
-                        return navigator.mediaDevices.getUserMedia({ audio: contraints.audio, video: false });
-                    });
-                }
-                getUserMediaPromise.then(function(mediaStream){
+                // Get audio stream first (never blocked by camera permission)
+                navigator.mediaDevices.getUserMedia(audioConstraints).then(function(audioStream){
                     // Note: This code may fire after the close button
 
                     // Handle Audio
-                    settingsMicrophoneStreamTrack = (mediaStream.getAudioTracks().length >= 1)? mediaStream.getAudioTracks()[0] : null ;
+                    settingsMicrophoneStreamTrack = (audioStream.getAudioTracks().length >= 1)? audioStream.getAudioTracks()[0] : null ;
                     if(MicrophoneFound && settingsMicrophoneStreamTrack != null){
                         settingsMicrophoneStream = new MediaStream();
                         settingsMicrophoneStream.addTrack(settingsMicrophoneStreamTrack);
@@ -12981,21 +12967,22 @@ function ShowMyProfile(){
                     $("#Settings_SpeakerOutput").css("width", "0%");
                     $("#Settings_RingerOutput").css("width", "0%");
 
-                    if(EnableVideoCalling == true){
-                        // Handle Video
-                        settingsVideoStreamTrack = (mediaStream.getVideoTracks().length >= 1)? mediaStream.getVideoTracks()[0] : null;
-                        if(VideoFound && settingsVideoStreamTrack != null){
-                            settingsVideoStream = new MediaStream();
-                            settingsVideoStream.addTrack(settingsVideoStreamTrack);
-                            // Display Preview Video
-                            localVideo.srcObject = settingsVideoStream;
-                            localVideo.onloadedmetadata = function(e) {
-                                localVideo.play();
+                    // Get video stream separately (so camera denial doesn't block audio setup)
+                    if(EnableVideoCalling == true && videoConstraints != null){
+                        navigator.mediaDevices.getUserMedia(videoConstraints).then(function(videoStream){
+                            settingsVideoStreamTrack = (videoStream.getVideoTracks().length >= 1)? videoStream.getVideoTracks()[0] : null;
+                            if(VideoFound && settingsVideoStreamTrack != null){
+                                settingsVideoStream = new MediaStream();
+                                settingsVideoStream.addTrack(settingsVideoStreamTrack);
+                                // Display Preview Video
+                                localVideo.srcObject = settingsVideoStream;
+                                localVideo.onloadedmetadata = function(e) {
+                                    localVideo.play();
+                                }
                             }
-                        }
-                        else {
-                            console.warn("No video / webcam devices found. Video Calling will not be possible.")
-                        }
+                        }).catch(function(e){
+                            console.warn("Video permission denied or unavailable:", e.name);
+                        });
                     }
 
                     // Return .then()

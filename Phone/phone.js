@@ -191,7 +191,7 @@ let EnableAccountSettings = (getDbItem("EnableAccountSettings", "1") == "1");   
 let EnableAppearanceSettings = (getDbItem("EnableAppearanceSettings", "1") == "1");     // Controls the Appearance tab in Settings
 let EnableNotificationSettings = (getDbItem("EnableNotificationSettings", "1") == "1"); // Controls the Notifications tab in Settings
 let EnableAlphanumericDial = (getDbItem("EnableAlphanumericDial", "0") == "1");         // Allows calling /[^\da-zA-Z\*\#\+\-\_\.\!\~\'\(\)]/g default is /[^\d\*\#\+]/g 
-let EnableVideoCalling = (getDbItem("EnableVideoCalling", "1") == "1");                 // Enables Video during a call
+let EnableVideoCalling = (getDbItem("EnableVideoCalling", "0") == "1");                 // Enables Video during a call
 let EnableTextExpressions = (getDbItem("EnableTextExpressions", "1") == "1");           // Enables Expressions (Emoji) glyphs when texting
 let EnableTextDictate = (getDbItem("EnableTextDictate", "1") == "1");                   // Enables Dictate (speech-to-text) when texting
 let EnableRingtone = (getDbItem("EnableRingtone", "1") == "1");                         // Enables a ring tone when an inbound call comes in.  (media/Ringtone_1.mp3)
@@ -12180,6 +12180,8 @@ function ShowMyProfile(){
     AudioVideoHtml += "<div><input type=checkbox id=Settings_EchoCancellation><label for=Settings_EchoCancellation> "+ lang.echo_cancellation +"<label></div>";
     AudioVideoHtml += "<div><input type=checkbox id=Settings_NoiseSuppression><label for=Settings_NoiseSuppression> "+ lang.noise_suppression +"<label></div>";
 
+    AudioVideoHtml += "<div><input type=checkbox id=Settings_EnableVideoCalling "+ ((EnableVideoCalling == true)? "checked" : "") +"><label for=Settings_EnableVideoCalling> "+ lang.video_calling +"<label></div>";
+
     if(EnableVideoCalling == true){
         AudioVideoHtml += "<div class=UiText>"+ lang.camera +":</div>";
         AudioVideoHtml += "<div style=\"text-align:center\"><select id=previewVideoSrc style=\"width:100%\"></select></div>";
@@ -12359,6 +12361,7 @@ function ShowMyProfile(){
             localDB.setItem("EchoCancellation", ($("#Settings_EchoCancellation").is(':checked'))? "1" : "0");
             localDB.setItem("NoiseSuppression", ($("#Settings_NoiseSuppression").is(':checked'))? "1" : "0");
             localDB.setItem("RingOutputId", $("#ringDevice").val());
+            localDB.setItem("EnableVideoCalling", ($("#Settings_EnableVideoCalling").is(':checked'))? "1" : "0");
 
             if(EnableVideoCalling == true){
                 localDB.setItem("VideoSrcId", $("#previewVideoSrc").val());

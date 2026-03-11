@@ -49,6 +49,7 @@
     "speaker" : "Speaker",
     "microphone" : "Microphone",
     "camera" : "Camera",
+    "video_calling" : "Enable Video Calling",
     "frame_rate" : "Frame Rate (per second)",
     "quality" : "Quality",
     "image_orientation" : "Image Orientation",

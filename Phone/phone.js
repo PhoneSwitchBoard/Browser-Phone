@@ -12952,7 +12952,16 @@ function ShowMyProfile(){
                 console.log("Get User Media", contraints);
 
                 // Get User Media
-                navigator.mediaDevices.getUserMedia(contraints).then(function(mediaStream){
+                var getUserMediaPromise = navigator.mediaDevices.getUserMedia(contraints);
+                // If video was requested but permission denied, fallback to audio-only
+                if(VideoFound && contraints.video !== false){
+                    getUserMediaPromise = getUserMediaPromise.catch(function(e){
+                        console.warn("getUserMedia failed with video, retrying audio-only:", e.name);
+                        VideoFound = false;
+                        return navigator.mediaDevices.getUserMedia({ audio: contraints.audio, video: false });
+                    });
+                }
+                getUserMediaPromise.then(function(mediaStream){
                     // Note: This code may fire after the close button
 
                     // Handle Audio
